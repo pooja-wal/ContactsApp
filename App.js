@@ -1,132 +1,151 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- * @flow strict-local
- */
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
-  SafeAreaView,
-  View,
-  Text,
   StyleSheet,
-  Platform,
-  PermissionsAndroid,
+  View,
   Alert,
-  FlatList,
-  TouchableOpacity
+  Platform,
+  SafeAreaView,
+  Text,
+  TouchableOpacity,
+  Header
 } from 'react-native';
-import { GoogleSignin } from '@react-native-community/google-signin';
+import {
+  GoogleSignin,
+  GoogleSigninButton,
+  statusCodes
+} from '@react-native-community/google-signin';
 
-import Contacts from 'react-native-contacts';
+import ContactList from './components/ContactList';
 
 const App = () => {
-  const [contactList, setContactList] = useState([]);
+  const [user, setUser] = useState({});
 
   useEffect(() => {
     GoogleSignin.configure({
-      scopes: ['https://www.googleapis.com/auth/drive.readonly'], // what API you want to access on behalf of the user, default is email and profile
       webClientId:
-        '436124074597-mqrtk24ddr0ap78u3nur7unv6vfp4bfu.apps.googleusercontent.com', // client ID of type WEB for your server (needed to verify user ID and offline access)
-      offlineAccess: true, // if you want to access Google API on behalf of the user FROM YOUR SERVER
-      hostedDomain: '', // specifies a hosted domain restriction
-      loginHint: '', // [iOS] The user's ID, or email address, to be prefilled in the authentication UI if possible. [See docs here](https://developers.google.com/identity/sign-in/ios/api/interface_g_i_d_sign_in.html#a0a68c7504c31ab0b728432565f6e33fd)
-      forceCodeForRefreshToken: true, // [Android] related to `serverAuthCode`, read the docs link below *.
-      accountName: '', // [Android] specifies an account name on the device that should be used
+        '436124074597-mqrtk24ddr0ap78u3nur7unv6vfp4bfu.apps.googleusercontent.com',
+      scopes: [
+        'https://www.google.com/m8/feeds/',
+        'https://www.googleapis.com/auth/contacts.readonly'
+      ],
+      offlineAccess: false,
+      forceCodeForRefreshToken: true,
       iosClientId:
-        '436124074597-8ukt31to3to38fb23vv54o8ll0qe2hoq.apps.googleusercontent.com' // [iOS] optional, if you want to specify the client ID of type iOS (otherwise, it is taken from GoogleService-Info.plist)
+        '436124074597-8ukt31to3to38fb23vv54o8ll0qe2hoq.apps.googleusercontent.com'
     });
+    isSignedIn();
+  }, [isSignedIn]);
+
+  const signInWithGoogle = async () => {
+    try {
+      await GoogleSignin.hasPlayServices();
+      const loggedInUser = await GoogleSignin.signIn();
+      setUser(loggedInUser);
+      console.log(
+        `Signed in on ${Platform.OS} and token is ${loggedInUser.idToken}`
+      );
+    } catch (error) {
+      console.log('error', error);
+      switch (error.code) {
+        case statusCodes.SIGN_IN_CANCELLED:
+          return Alert.alert('User cancelled the sign in flow!');
+        case statusCodes.IN_PROGRESS:
+          return Alert.alert('Sign in in progress!');
+        case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
+          return Alert.alert('Play services aren not available or outdated!');
+        default:
+          return Alert.alert('Something went wrong!');
+      }
+    }
+  };
+  const isSignedIn = useCallback(async () => {
+    if (await GoogleSignin.isSignedIn()) {
+      getCurrentUserInfo();
+    }
+  }, [getCurrentUserInfo]);
+
+  const getCurrentUserInfo = useCallback(async () => {
+    try {
+      const userInfo = await GoogleSignin.signInSilently();
+      setUser(userInfo);
+    } catch (error) {
+      if (error.code === statusCodes.SIGN_IN_REQUIRED) {
+        Alert.alert('User has not signed in yet!');
+      } else {
+        Alert.alert("Something went wrong. Unable to get user's info.");
+      }
+    }
   }, []);
 
-  // const signInWithGoogle = useCallback(async () => {
-  //   try {
-  //     await GoogleSignin.hasPlayServices({
-  //       showPlayServicesUpdateDialog: true
-  //     });
-  //     await GoogleSignin.configure({
-  //       scopes: [
-  //         'https://www.google.com/m8/feeds/',
-  //         'https://www.googleapis.com/auth/contacts.readonly'
-  //       ],
-  //       webClientId:
-  //         '436124074597-8ukt31to3to38fb23vv54o8ll0qe2hoq.apps.googleusercontent.com',
-  //       offlineAccess: false,
-  //       hostedDomain: '',
-  //       forceConsentPrompt: true,
-  //       accountName: ''
-  //     });
-  //   } catch (error) {
-  //     console.log('Oops!', error);
-  //   }
-  // }, []);
-
-  // const setAndroidPermissions = useCallback(async () => {
-  //   const contactAccess = await PermissionsAndroid.request(
-  //     PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
-  //     {
-  //       title: 'Contacts',
-  //       message: 'ContactsApp needs access to contacts.'
-  //     }
-  //   );
-  //   if (contactAccess === 'denied') {
-  //     Alert.alert(
-  //       'Grant access!',
-  //       'Contact access has been denied. Please go to settings and allow access to view contacts!',
-  //       [{ text: 'Okay' }]
-  //     );
-  //     return;
-  //   }
-  //   getContactList();
-  // }, []);
-
-  // const getContactList = () => {
-  //   Contacts.getAll((error, contacts) => {
-  //     if (error === 'denied') {
-  //       Alert.alert(
-  //         'Grant access!',
-  //         'Contact access has been denied. Please go to settings and allow access to view contacts!',
-  //         [{ text: 'Okay' }]
-  //       );
-  //       return;
-  //     }
-  //     contacts = contacts.concat(contacts).concat(contacts).concat(contacts);
-  //     setContactList(contacts);
-  //     console.log('contacts', contacts);
-  //   });
-  // };
+  const signOut = async () => {
+    try {
+      await GoogleSignin.revokeAccess();
+      await GoogleSignin.signOut();
+      setUser({});
+    } catch (error) {
+      console.log('Error while logging out: ', error);
+      Alert.alert('Oops!', 'Could not log user out!');
+    }
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <FlatList
-        keyExtractor={(item) => item.recordID}
-        data={contactList}
-        renderItem={(itemData) => (
-          <TouchableOpacity activeOpacity>
-            <View style={styles.contactContainer}>
-              <Text style={styles.contactItem}>{itemData.item.givenName}</Text>
+    <SafeAreaView style={styles.main}>
+      <View style={styles.headerContainer}>
+        <Text style={styles.headerText}>ContactsApp</Text>
+      </View>
+      {user.idToken ? (
+        <View>
+          <TouchableOpacity onPress={signOut}>
+            <View style={styles.logoutContainer}>
+              <Text style={styles.logOutText}>Log out</Text>
             </View>
           </TouchableOpacity>
-        )}
-      />
+          <ContactList />
+        </View>
+      ) : (
+        <View style={styles.signInButtonStyles}>
+          <GoogleSigninButton
+            onPress={signInWithGoogle}
+            style={styles.signInButtonPosition}
+            size={GoogleSigninButton.Size.Wide}
+            color={GoogleSigninButton.Color.Dark}
+          />
+        </View>
+      )}
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  main: {
+    flex: 1
+  },
+  signInButtonStyles: {
     flex: 1,
-    marginTop: Platform.OS === 'ios' ? '20%' : '10%'
+    justifyContent: 'center',
+    alignItems: 'center'
   },
-  contactContainer: {
-    backgroundColor: 'black',
-    borderBottomColor: 'white',
-    borderWidth: 0.5
+  signInButtonPosition: {
+    width: 192,
+    height: 48
   },
-  contactItem: {
-    color: 'white',
-    fontWeight: 'bold'
+  logoutContainer: {
+    alignSelf: 'flex-end',
+    marginBottom: '3%',
+    marginTop: '3%',
+    marginRight: '2%'
+  },
+  logOutText: {
+    color: 'red'
+  },
+  headerContainer: {
+    alignItems: 'center',
+    backgroundColor: 'pink',
+    height: '7%'
+  },
+  headerText: {
+    fontWeight: 'bold',
+    fontSize: 30
   }
 });
 
