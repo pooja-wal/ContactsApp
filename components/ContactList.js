@@ -2,13 +2,12 @@ import React, { useEffect, useCallback, useState } from 'react';
 import {
   View,
   Text,
-  Platform,
   FlatList,
-  TouchableOpacity,
+  TouchableWithoutFeedback,
   StyleSheet,
   ActivityIndicator
 } from 'react-native';
-
+import { useNavigation } from '@react-navigation/native';
 import { GoogleSignin } from '@react-native-community/google-signin';
 
 const defaultheader = () => {
@@ -29,12 +28,12 @@ const defaultheader = () => {
   };
 };
 
-const ContactList = (props) => {
-  const [accessToken, setAccessToken] = useState();
+const ContactList = () => {
+  const navigation = useNavigation();
   const [contactList, setContactList] = useState();
   useEffect(() => {
     getContacts();
-  }, [getContacts, props.user]);
+  }, [getContacts]);
 
   const transformRequest = (obj) => {
     var str = [];
@@ -48,15 +47,13 @@ const ContactList = (props) => {
     const header = defaultheader();
     let params = {
       alt: 'json',
-      'max-results': 100
+      'max-results': 5000
     };
     header.method = 'GET';
     let url =
       'https://www.google.com/m8/feeds/contacts/default/full?' +
       transformRequest(params);
-    // await getAccessToken();
     let tokenResponse = await GoogleSignin.getTokens();
-    // eslint-disable-next-line no-undef
     header.headers.Authorization = 'Bearer ' + tokenResponse.accessToken;
     const response = await fetch(url, header);
     let contactResponse = await response.json();
@@ -77,11 +74,16 @@ const ContactList = (props) => {
             a.title.$t.localeCompare(b.title.$t)
           )}
           renderItem={(itemData) => (
-            <TouchableOpacity activeOpacity>
+            <TouchableWithoutFeedback
+              onPress={() =>
+                navigation.navigate('Contact Details', {
+                  contact: itemData.item
+                })
+              }>
               <View style={styles.contactContainer}>
                 <Text style={styles.contactItem}>{itemData.item.title.$t}</Text>
               </View>
-            </TouchableOpacity>
+            </TouchableWithoutFeedback>
           )}
         />
       ) : (
